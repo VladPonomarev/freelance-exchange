@@ -14,49 +14,87 @@ document.addEventListener(('DOMContentLoaded'), () => {
         modalOrderActive = document.getElementById('order_active'),
         modalClose = document.querySelector('.close');
 
-   const orders = [];
+      const orders = JSON.parse(localStorage.getItem('freeOrders')) || [];
+      console.log('orders: ', orders);
+
+      // описываем функции 
+      const toStorage = () => {
+        localStorage.setItem('freeOrders', JSON.stringify(orders));
+      };
 
 
-    const renderOrders = () => {
+      const calcDeadline = (deadline) => {
+        const deadlineArray = deadline.match(/(\d{4})-(\d{2})-(\d{2})/);
+        // вычисляем количество миллисекунд до дедлана по временной зоне UTC 
+        const deadLineTime = Date.UTC(deadlineArray[1], deadlineArray[2] - 1, deadlineArray[3]);
+        // вычисляем количество миллисекунд до текущей даты по временной зоне UTC 
+        const dateNow = Date.now();
+        // находим разность и переводим её в дни
+        var dayNumber = Math.ceil((deadLineTime - dateNow) / (1000 * 60 * 60 * 24));
+        // функция склонения падежей
+        const num2str = (n, textForms) => {
+          n = Math.abs(n) % 100;
+          var n1 = n % 10;
+    
+          if (n > 10 && n < 20) { return textForms[2]; }
+          if (n1 > 1 && n1 < 5) { return textForms[1]; }
+          if (n1 == 1) { return textForms[0]; }
+          return textForms[2];
+        };
+        const textForms = ['день', 'дня', 'дней'];
+        const textForm = num2str(dayNumber, textForms);
+        const day = `${dayNumber} ${textForm}`;
+        // console.log('До выполнения этого заказа осталось  ', day);
+        return day;
+      };
 
-        ordersTable.textContent = '';
+      //  ренериг строк таблиц со всми заказами 
+      const renderOrders = () => {
+          ordersTable.textContent = '';
+          orders.forEach((order, i) => {
 
-        orders.forEach((order, i) => {
                 ordersTable.innerHTML += `
                 <tr class="order ${order.active ? 'taken' : ''}" 
                 data-number-order="${i}">
                     <td>${i+1}</td>
                     <td>${order.title}</td>
                     <td class="${order.currency}"></td>
-                    <td>${order.deadline}</td>
+                    <td>${calcDeadline(order.deadline)}</td>
                 </tr>`;  
         
         });   
     };
 
+        // обработчик кликов в модальном окне 
         const handlerModal = (event) => {
-          const target = event.target;
-          const modal = target.closest('.order-modal');
-          const order = orders[modal.id];
+          const target = event.target; // элемкнт по которому кликнули  
+          const modal = target.closest('.order-modal'); // все модальное окно 
+          const order = orders[modal.id]; // текущий заказ 
 
-          if (target.closest('.close ') || target === modal) {
+          // создаем функцию, чтобы избежать дублирование кода
+          const baseAction = () => {
+            modal.style.display = 'none';
+            toStorage(); // запись заказов в localStorage
+            renderOrders(); // обновление таблицы заказов
+          };
+          // закрываем модальное окно 
+          if (target.closest('.close') || target === modal) {
             modal.style.display = 'none';
           }
-
+          // подтверждаем выбор заказа 
           if (target.classList.contains('get-order')) {
             order.active = true;
+            baseAction();
           }
-
+          // отказываемся от выбраного заказа 
           if (target.id ==='capitulation') {
             order.active = false;
-            modal.style.display = 'none';
-            renderOrders();
+            baseAction();
           }
-
+          // удаляем заказ
           if (target.id === 'ready') { 
-            order.splice(orders.indexOf(order), 1);
-            modal.style.display = 'none';
-            renderOrders();
+            orders.splice(orders.indexOf(order), 1);
+            baseAction();
           }
         };
       
@@ -67,6 +105,7 @@ document.addEventListener(('DOMContentLoaded'), () => {
             //console.log(order);
 
             const { title, firstName, email, phone, description, amount, currency, deadline, active = false } = order;
+            console.log('deadline', deadline);
 
             const modal = active ? modalOrderActive : modalOrder;
 
@@ -85,7 +124,7 @@ document.addEventListener(('DOMContentLoaded'), () => {
                 emailBlock.textContent = email;
                 emailBlock.href = 'mailto:' + email;
                 descriptionBlock.textContent = description;
-                deadlineBlock.textContent = deadline;
+                deadlineBlock.textContent = calcDeadline(deadline);
                 currencyBlock.className = 'currency_img';
                 currencyBlock.classList.add(currency);
                 countBlock.textContent = amount;
@@ -149,8 +188,11 @@ document.addEventListener(('DOMContentLoaded'), () => {
      formElements.forEach(elem => obj[elem.name] = elem.value
      );
  
-     orders.push(obj);
+     orders.push(obj); // обовляем новый заказ 
 
      formCustomer.reset(); // очистка формы
+
+     // обавка заказов locaStorage
+     toStorage();
    });
 });   //end DOMContentLoaded
